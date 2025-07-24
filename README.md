@@ -14,6 +14,7 @@
     *Equal contribution&emsp;&emsp;&emsp;&dagger;Corresponding author
 </p>
 </p>
+    <a href="https://arxiv.org/abs/2507.17312"><img src="https://img.shields.io/badge/arXiv-2507.17312-b31b1b.svg"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
 </p>
 <p>
