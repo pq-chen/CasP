@@ -1,0 +1,26 @@
+[project]
+name = "casp"
+version = "0.0.1"
+requires-python = ">=3.8"
+
+[tool.ruff]
+line-length = 80
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "W",  # pycodestyle warnings
+    "C90",  # mccabe
+    "B",  # flake8-bugbear
+    "A",  # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "I",  # isort
+    "SIM",  # flake8-simplify
+    "UP",  # pyupgrade
+    "N",  # PEP8-naming
+    "PERF",  # Perflint
+    "RUF",  # Ruff-specific rules
+    "ANN",  # flake8-annotations
+]
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true

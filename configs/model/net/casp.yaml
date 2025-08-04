@@ -1,0 +1,56 @@
+_target_: src.models.nets.CasP
+config:
+    train_size: 832
+    test_size: null
+    topk: 8
+    threshold: 0.2
+    border_removal: 2
+    # ----------
+    scales: [8, 2]
+    data_mode: "gray"
+    data_factor: 32
+    dim_list: [64, 128, 192, 256, 256]
+    # ----------
+    low_level_encoder:
+        dim_list:
+            - ${...dim_list.0}
+            - ${...dim_list.1}
+            - ${...dim_list.2}
+        num_blocks_list: [2, 4, 4]
+    high_level_encoder:
+        dim_list:
+            - ${...dim_list.2}
+            - ${...dim_list.3}
+            - ${...dim_list.4}
+        num_blocks_list: [2, 2]
+        num_heads_list: [8, 8]
+        num_anchors_list: [4, 2]
+    positional_encoding:
+        dim: ${..dim_list.3}
+        train_size: ${..train_size}
+        test_size: ${..test_size}
+    coarse_module:
+        dim: ${..dim_list.3}
+        num_heads: 8
+        num_layers: 2
+    coarse_matching:
+        dim_list: 
+            - ${...dim_list.2}
+            - ${...dim_list.3}
+        num_heads: 8
+        num_layers: 2
+        topk: ${..topk}
+        threshold: ${..threshold}
+        border_removal: ${..border_removal}
+    fine_preprocess:
+        dim_list:
+            - ${...dim_list.0}
+            - ${...dim_list.1}
+            - ${...dim_list.2}
+        window_size: 5
+        stride: 4
+        padding: 2
+    fine_cls_matching:
+        window_size: ${..scales.0}
+    fine_reg_matching:
+        window_size: ${..fine_preprocess.window_size}

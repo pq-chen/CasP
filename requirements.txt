@@ -1,0 +1,5 @@
+gradio==4.44.1
+kornia==0.7.0
+matplotlib
+omegaconf
+opencv-python-headless==4.10.0.84
