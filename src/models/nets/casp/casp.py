@@ -104,7 +104,7 @@ class CasP(Module):
         points1 = (
             points1 * scale_coarse
             + results["fine_cls_biases1"]
-            + results["fine_reg_biases"] * scale_fine
+            # + results["fine_reg_biases"] * scale_fine
         )
         if "scale0" in data and "scale1" in data:
             points0 = points0 * data["scale0"][b_indices]
@@ -127,6 +127,49 @@ class CasP(Module):
                 x0_list[-2:], x1_list[-2:], mask0=mask0, mask1=mask1
             )
         )
+        M_FIXED = 1024
+        THRESH = 0.8
+
+        b_idx, i_idx, j_idx = results["coarse_cls_indices"]  # (3, M)
+        scores = results["scores"]                             # (M,)
+
+        # 1) score filter
+        mask = scores > THRESH
+        b_idx  = b_idx[mask]
+        i_idx  = i_idx[mask]
+        j_idx  = j_idx[mask]
+        scores = scores[mask]
+        M = scores.numel()
+
+        # 2) pad/trim to M_FIXED
+        if M < M_FIXED:
+            pad_len = M_FIXED - M
+            device = scores.device
+            dtype_i = i_idx.dtype
+            dtype_b = b_idx.dtype
+            # pad with zeros (valid indices)
+            b_pad = torch.zeros(pad_len, dtype=dtype_b, device=device)
+            i_pad = torch.zeros(pad_len, dtype=dtype_i, device=device)
+            j_pad = torch.zeros(pad_len, dtype=dtype_i, device=device)
+            s_pad = torch.zeros(pad_len, dtype=scores.dtype, device=device)
+
+            b_idx  = torch.cat([b_idx,  b_pad], dim=0)
+            i_idx  = torch.cat([i_idx,  i_pad], dim=0)
+            j_idx  = torch.cat([j_idx,  j_pad], dim=0)
+            scores = torch.cat([scores, s_pad], dim=0)
+
+        elif M > M_FIXED:
+            b_idx  = b_idx[:M_FIXED]
+            i_idx  = i_idx[:M_FIXED]
+            j_idx  = j_idx[:M_FIXED]
+            scores = scores[:M_FIXED]
+
+        # write back
+        results["coarse_cls_indices"] = torch.stack([b_idx, i_idx, j_idx], dim=0)  # (3, 2048)
+        results["scores"] = scores  # (2048,)
+
+        print(f"[fix_M] coarse_cls_indices/scores forced to {M_FIXED} (was {M})")
+
         x0_8x, x1_8x = results.pop("x_8x")
 
         x0_list, x1_list = [*x0_list[:-2], x0_8x], [*x1_list[:-2], x1_8x]
@@ -135,17 +178,20 @@ class CasP(Module):
         )
 
         results.update(self.fine_cls_matching(x0_cropped, x1_cropped))
-        init = torch.cat(
-            [results["fine_cls_biases0"], results["fine_cls_biases1"]], dim=-1
-        )
-        init = init / self.scales[0] + 0.5
-        results.update(
-            self.fine_reg_matching(
-                x0_cropped, x1_cropped, num_iters=1, init=init
-            )
-        )
+        # init = torch.cat(
+        #     [results["fine_cls_biases0"], results["fine_cls_biases1"]], dim=-1
+        # )
+        # init = init / self.scales[0] + 0.5
+        # results.update(
+        #     self.fine_reg_matching(
+        #         x0_cropped, x1_cropped, num_iters=1, init=init
+        #     )
+        # )
 
         self.update_points(data, results)
+        results["points0"] = results["points0"][:M]
+        results["points1"] = results["points1"][:M]
+        results["scores"] = results["scores"][:M]
         return results
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import functools
 from typing import Tuple, Optional
-
+from .onnx_safe_solve import onnx_safe_solve
 
 ##########################
 ####      from pytorch3d      ####
@@ -159,7 +159,8 @@ def get_perspective_transform(src, dst):
 
     # solve the system Ax = b
     # X, LU = torch.gesv(b, A)
-    X = torch.linalg.solve(A, b)
+    # X = torch.linalg.solve(A, b)
+    X = onnx_safe_solve(A, b, assume_spd=True)    # set assume_spd=False if A may be non-SPD
 
     # create variable to return
     batch_size = src.shape[0]
