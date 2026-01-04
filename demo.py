@@ -23,6 +23,12 @@ matcher_configs = {
         "name": "casp",
         "ckpt_path": "weights/casp_minima.pth",
     },
+    "casp_outdoor_lite": {
+        "matcher": CasP,
+        "name": "casp",
+        "ckpt_path": "weights/casp_outdoor_lite.pth",
+        "dim_list": [64, 64, 128, 256, 256],
+    },
 }
 
 
@@ -32,8 +38,10 @@ def load_matcher(
     ckpt_path: str,
     threshold: Optional[float] = None,
     device: str = "cpu",
+    **kwargs: Dict[str, Any],
 ) -> Module:
     config = OmegaConf.load(f"configs/model/net/{name}.yaml").config
+    config = OmegaConf.merge(config, kwargs)
     if threshold is not None:
         config.threshold = threshold
     matcher = matcher(config)
@@ -54,9 +62,10 @@ def parse_args() -> Namespace:
         "--method",
         type=str,
         default="casp_outdoor",
-        choices=["casp_outdoor", "casp_minima"],
+        choices=["casp_outdoor", "casp_minima", "casp_outdoor_lite"],
     )
     parser.add_argument("--matching_threshold", type=float)
+    parser.add_argument("--fp16", action="store_true")
 
     parser.add_argument(
         "--ransac", type=str, choices=["fundamental", "homography"]
@@ -109,11 +118,15 @@ def main(
     args: Dict[str, Any],
 ) -> Tuple[ndarray, ndarray, ndarray, Optional[ndarray]]:
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    if args["fp16"] and device != "cuda":
+        raise ValueError("FP16 is only supported on CUDA devices.")
     matcher = load_matcher(
         **matcher_configs[args["method"]],
         threshold=args["matching_threshold"],
         device=device,
     )
+    if args["fp16"]:
+        matcher = matcher.half()
     data_configs = {
         "mode": matcher.data_mode,
         "size": args["image_size"],
@@ -139,7 +152,10 @@ def main(
     if mask1 is not None:
         data["mask1"] = mask0[None]
     for key, value in data.items():
-        data[key] = torch.from_numpy(value).float().to(device)
+        if args["fp16"]:
+            data[key] = torch.from_numpy(value).half().to(device)
+        else:
+            data[key] = torch.from_numpy(value).float().to(device)
     with torch.no_grad():
         results = matcher(data)
 

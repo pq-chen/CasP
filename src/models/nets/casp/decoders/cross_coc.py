@@ -73,8 +73,9 @@ class CrossCoCBlock(Module):
         self, x0: Tensor, x1: Tensor, mask: Optional[Tensor] = None
     ) -> Tensor:
         message = self.norm1(self.context_cluster(x0, x1, mask=mask))
-        message = torch.cat([x0, message], dim=-1)
-        message = self.gelu(self.linear(message)).permute(0, 3, 1, 2)
+        message = self.gelu(
+            self.linear(torch.cat([x0, message], dim=-1))
+        ).permute(0, 3, 1, 2)
         message = self.conv(message).permute(0, 2, 3, 1)
         x0 = x0 + self.norm2(message)
         return x0

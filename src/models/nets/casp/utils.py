@@ -63,17 +63,17 @@ def remove_border_one_side(
     if r == 0:
         return x
 
-    out = x.unflatten(1, size)
+    out = x.unflatten(-1, size)
     out[:, :r, :] = 0
     out[:, :, :r] = 0
     if mask is not None:
         for b in range(len(x)):
-            h = mask[b].sum(dim=0).amax().int().item()
-            w = mask[b].sum(dim=1).amax().int().item()
-            out[b, h - r :, :] = 0
-            out[b, :, w - r :] = 0
+            b_h = mask[b].sum(dim=-2).amax().int().item()
+            b_w = mask[b].sum(dim=-1).amax().int().item()
+            out[b, b_h - r :, :] = 0
+            out[b, :, b_w - r :] = 0
     else:
         out[:, -r:, :] = 0
         out[:, :, -r:] = 0
-    out = out.flatten(start_dim=1)
+    out = out.flatten(start_dim=-2)
     return out

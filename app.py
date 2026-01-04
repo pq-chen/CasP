@@ -108,6 +108,7 @@ def run_matching(
         "path1": path1,
         "image_size": image_size,
         "matching_threshold": matching_threshold,
+        "fp16": False,
         "ransac": ransac,
         "estimator": estimator,
         "inlier_threshold": inlier_threshold,
@@ -153,147 +154,142 @@ def run_matching(
     )
 
 
-with gr.Blocks(css=CSS) as demo:
-    with gr.Tab("Image Matching"):
-        with gr.Row():
-            with gr.Column(scale=3):
-                gr.HTML(DESCRIPTION, elem_id="desc")
-        with gr.Row():
-            with gr.Column():
-                gr.Markdown("### Input Panels:")
-                with gr.Row():
-                    method = gr.Dropdown(
-                        choices=["casp_outdoor", "casp_minima"],
-                        value="casp_outdoor",
-                        label="Matching Model",
-                    )
-                with gr.Row():
-                    path0 = gr.Image(
-                        height=300,
-                        image_mode="RGB",
-                        type="filepath",
-                        label="Image 0",
-                    )
-                    path1 = gr.Image(
-                        height=300,
-                        image_mode="RGB",
-                        type="filepath",
-                        label="Image 1",
-                    )
-                with gr.Row():
-                    stop = gr.Button(value="Stop", variant="stop")
-                    run = gr.Button(value="Run", variant="primary")
-                with gr.Accordion("Advanced Setting", open=False):
-                    with gr.Accordion("Image Setting"):
-                        with gr.Row():
-                            force_resize = gr.Checkbox(
-                                label="Force Resize", value=True
-                            )
-                            image_size = gr.Slider(
-                                minimum=512,
-                                maximum=1408,
-                                value=1152,
-                                step=32,
-                                label="Longer Side (pixels)",
-                            )
-                    with gr.Accordion("Matching Setting"):
-                        with gr.Row():
-                            matching_threshold = gr.Slider(
-                                minimum=0.0,
-                                maximum=1,
-                                value=0.2,
-                                step=0.05,
-                                label="Matching Threshold",
-                            )
-                    with gr.Accordion("RANSAC Setting"):
-                        with gr.Row():
-                            ransac = gr.Dropdown(
-                                choices=["none", "fundamental", "homography"],
-                                value="none",
-                                label="Model",
-                            )
-                        with gr.Row():
-                            estimator = gr.Dropdown(
-                                choices=["CV2_RANSAC", "CV2_USAC_MAGSAC"],
-                                value="CV2_USAC_MAGSAC",
-                                label="Estimator",
-                                visible=False,
-                            )
-                        with gr.Row():
-                            inlier_threshold = gr.Slider(
-                                minimum=0.0,
-                                maximum=10.0,
-                                value=3.0,
-                                step=0.5,
-                                label="Inlier Threshold",
-                                visible=False,
-                            )
-                with gr.Row():
-                    with gr.Accordion("Example Pairs"):
-                        gr.Examples(
-                            examples=examples,
-                            inputs=[path0, path1, method, ransac],
-                            label="Click an example pair below",
-                        )
-            with gr.Column():
-                gr.Markdown(
-                    "### Output Panels: 🟢▲ High confidence | 🔴▼ Low confidence"
+with gr.Blocks(css=CSS) as demo, gr.Tab("Image Matching"):
+    with gr.Row(), gr.Column(scale=3):
+        gr.HTML(DESCRIPTION, elem_id="desc")
+    with gr.Row():
+        with gr.Column():
+            gr.Markdown("### Input Panels:")
+            with gr.Row():
+                method = gr.Dropdown(
+                    choices=[
+                        "casp_outdoor",
+                        "casp_minima",
+                        "casp_outdoor_lite",
+                    ],
+                    value="casp_outdoor",
+                    label="Matching Model",
                 )
-                with gr.Accordion("Raw Keypoints", open=False):
-                    raw_keypoint_fig = gr.Image(
-                        format="png", type="numpy", label="Raw Keypoints"
+            with gr.Row():
+                path0 = gr.Image(
+                    height=300,
+                    image_mode="RGB",
+                    type="filepath",
+                    label="Image 0",
+                )
+                path1 = gr.Image(
+                    height=300,
+                    image_mode="RGB",
+                    type="filepath",
+                    label="Image 1",
+                )
+            with gr.Row():
+                stop = gr.Button(value="Stop", variant="stop")
+                run = gr.Button(value="Run", variant="primary")
+            with gr.Accordion("Advanced Setting", open=False):
+                with gr.Accordion("Image Setting"), gr.Row():
+                    force_resize = gr.Checkbox(label="Force Resize", value=True)
+                    image_size = gr.Slider(
+                        minimum=512,
+                        maximum=1408,
+                        value=1152,
+                        step=32,
+                        label="Longer Side (pixels)",
                     )
-                with gr.Accordion("Raw Matches"):
-                    raw_matching_fig = gr.Image(
-                        format="png", type="numpy", label="Raw Matches"
+                with gr.Accordion("Matching Setting"), gr.Row():
+                    matching_threshold = gr.Slider(
+                        minimum=0.0,
+                        maximum=1,
+                        value=0.2,
+                        step=0.05,
+                        label="Matching Threshold",
                     )
-                with gr.Accordion("RANSAC Keypoints", open=False):
-                    ransac_keypoint_fig = gr.Image(
-                        format="png", type="numpy", label="RANSAC Keypoints"
-                    )
-                with gr.Accordion("RANSAC Matches"):
-                    ransac_matching_fig = gr.Image(
-                        format="png", type="numpy", label="RANSAC Matches"
-                    )
+                with gr.Accordion("RANSAC Setting"):
+                    with gr.Row():
+                        ransac = gr.Dropdown(
+                            choices=["none", "fundamental", "homography"],
+                            value="none",
+                            label="Model",
+                        )
+                    with gr.Row():
+                        estimator = gr.Dropdown(
+                            choices=["CV2_RANSAC", "CV2_USAC_MAGSAC"],
+                            value="CV2_USAC_MAGSAC",
+                            label="Estimator",
+                            visible=False,
+                        )
+                    with gr.Row():
+                        inlier_threshold = gr.Slider(
+                            minimum=0.0,
+                            maximum=10.0,
+                            value=3.0,
+                            step=0.5,
+                            label="Inlier Threshold",
+                            visible=False,
+                        )
+            with gr.Row(), gr.Accordion("Example Pairs"):
+                gr.Examples(
+                    examples=examples,
+                    inputs=[path0, path1, method, ransac],
+                    label="Click an example pair below",
+                )
+        with gr.Column():
+            gr.Markdown(
+                "### Output Panels: 🟢▲ High confidence | 🔴▼ Low confidence"
+            )
+            with gr.Accordion("Raw Keypoints", open=False):
+                raw_keypoint_fig = gr.Image(
+                    format="png", type="numpy", label="Raw Keypoints"
+                )
+            with gr.Accordion("Raw Matches"):
+                raw_matching_fig = gr.Image(
+                    format="png", type="numpy", label="Raw Matches"
+                )
+            with gr.Accordion("RANSAC Keypoints", open=False):
+                ransac_keypoint_fig = gr.Image(
+                    format="png", type="numpy", label="RANSAC Keypoints"
+                )
+            with gr.Accordion("RANSAC Matches"):
+                ransac_matching_fig = gr.Image(
+                    format="png", type="numpy", label="RANSAC Matches"
+                )
 
-            inputs = [
-                method,
-                path0,
-                path1,
-                image_size,
-                matching_threshold,
-                ransac,
-                estimator,
-                inlier_threshold,
-            ]
-            outputs = [
-                raw_keypoint_fig,
-                raw_matching_fig,
-                ransac_keypoint_fig,
-                ransac_matching_fig,
-            ]
+        inputs = [
+            method,
+            path0,
+            path1,
+            image_size,
+            matching_threshold,
+            ransac,
+            estimator,
+            inlier_threshold,
+        ]
+        outputs = [
+            raw_keypoint_fig,
+            raw_matching_fig,
+            ransac_keypoint_fig,
+            ransac_matching_fig,
+        ]
 
-            running_event = run.click(
-                fn=run_matching, inputs=inputs, outputs=outputs
-            )
-            stop.click(
-                fn=None, inputs=None, outputs=None, cancels=[running_event]
-            )
-            force_resize.select(
-                fn=lambda checked: gr.update(
-                    visible=checked, value=1152 if checked else None
-                ),
-                inputs=force_resize,
-                outputs=image_size,
-            )
-            ransac.change(
-                fn=lambda model: (
-                    gr.update(visible=model != "none"),
-                    gr.update(visible=model != "none"),
-                ),
-                inputs=ransac,
-                outputs=[estimator, inlier_threshold],
-            )
+        running_event = run.click(
+            fn=run_matching, inputs=inputs, outputs=outputs
+        )
+        stop.click(fn=None, inputs=None, outputs=None, cancels=[running_event])
+        force_resize.select(
+            fn=lambda checked: gr.update(
+                visible=checked, value=1152 if checked else None
+            ),
+            inputs=force_resize,
+            outputs=image_size,
+        )
+        ransac.change(
+            fn=lambda model: (
+                gr.update(visible=model != "none"),
+                gr.update(visible=model != "none"),
+            ),
+            inputs=ransac,
+            outputs=[estimator, inlier_threshold],
+        )
 
 
 if __name__ == "__main__":

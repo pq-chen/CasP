@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -88,10 +88,11 @@ def make_matching_figure(
     errors: ndarray,
     threshold: float,
     text: Optional[List[str]] = None,
+    size: Optional[Union[int, Tuple[int, int]]] = None,
     **kwargs,
 ) -> Optional[Figure]:
-    image0, _, _ = load_image(path0, mode="color")
-    image1, _, _ = load_image(path1, mode="color")
+    image0, _, _ = load_image(path0, mode="color", size=size)
+    image1, _, _ = load_image(path1, mode="color", size=size)
     colors = _make_colormap(errors, threshold, alpha=0.1)
     text = [f"#matches: {len(points0)}"] if text is None else text
     figure = _make_matching_figure(

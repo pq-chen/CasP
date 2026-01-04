@@ -69,8 +69,12 @@ class FinePreprocess(Module):
     ) -> Tuple[Tensor, Tensor]:
         x0, x1 = x0_list[0], x1_list[0]
         if len(indices[0]) == 0:
-            x0_cropped = x0.new_empty(0, self.window_size0**2, x0.shape[1])
-            x1_cropped = x1.new_empty(0, self.window_size1**2, x1.shape[1])
+            x0_cropped = x0.new_empty(
+                0, x0.shape[1], self.window_size0, self.window_size0
+            )
+            x1_cropped = x1.new_empty(
+                0, x1.shape[1], self.window_size1, self.window_size1
+            )
             return x0_cropped, x1_cropped
 
         if x0.shape == x1.shape:

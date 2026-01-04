@@ -98,6 +98,7 @@ class CoarseMatching(Module):
         mask1: Optional[Tensor] = None,
     ) -> Dict[str, Any]:
         assert len(x0_list) == len(x1_list) == 2
+        inf = 1e9 if self.training else float("inf")
         n, c, h0, w0 = x0_list[0].shape
         _, _, h1, w1 = x1_list[0].shape
         grid_size0 = tuple(x0_list[1].shape[-2:])
@@ -108,10 +109,11 @@ class CoarseMatching(Module):
         x1_prior = x1_list[1].flatten(start_dim=-2)
         similarity = x0_prior.transpose(-2, -1) @ x1_prior / c
         if mask0 is not None and mask1 is not None:
-            mask0_prior = F.max_pool2d(mask0.float(), self.stride).bool()
-            mask1_prior = F.max_pool2d(mask1.float(), self.stride).bool()
+            mask0_prior, mask1_prior = mask0.float(), mask1.float()
+            mask0_prior = F.max_pool2d(mask0_prior, self.stride).bool()
+            mask1_prior = F.max_pool2d(mask1_prior, self.stride).bool()
             mask = mask0_prior.reshape(n, -1, 1) & mask1_prior.reshape(n, 1, -1)
-            similarity.masked_fill_(~mask, -float("inf"))
+            similarity.masked_fill_(~mask, -inf)
 
         _, indices0_to_1 = similarity.topk(self.topk, dim=-1)
         _, indices1_to_0 = similarity.transpose(-2, -1).topk(self.topk, dim=-1)
@@ -153,7 +155,9 @@ class CoarseMatching(Module):
                 .gather(-2, indices1_to_0)
             ),
         )
-        heatmap = (heatmap0_to_1, heatmap1_to_0)
+        heatmap = heatmap0_to_1, heatmap1_to_0
+        x0 = unpatchify(x0, grid_size0, self.stride)
+        x1 = unpatchify(x1, grid_size1, self.stride)
 
         results.update(
             self.create_coarse_matching(
@@ -166,7 +170,5 @@ class CoarseMatching(Module):
                 mask1=mask1,
             )
         )
-        x0 = unpatchify(x0, grid_size0, self.stride)
-        x1 = unpatchify(x1, grid_size1, self.stride)
-        results["x_8x"] = (x0, x1)
+        results["x_8x"] = x0, x1
         return results

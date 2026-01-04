@@ -21,11 +21,11 @@ except ImportError:
 
 
 def apply_rotary_emb(x: Tensor, encoding: Tensor) -> Tensor:
-    sin, cos = encoding.unflatten(-1, (-1, 2)).chunk(2, dim=-1)
+    freqs_sin, freqs_cos = encoding.unflatten(-1, (-1, 2)).chunk(2, dim=-1)
     x = x.unflatten(-1, (-1, 2))
     x1, x2 = x.unbind(dim=-1)
     rotated_x = torch.stack([-x2, x1], dim=-1)
-    x = (x * cos + rotated_x * sin).flatten(start_dim=-2)
+    x = (x * freqs_cos + rotated_x * freqs_sin).flatten(start_dim=-2)
     return x
 
 
@@ -48,6 +48,7 @@ class Attention(Module):
     def forward(
         self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None
     ) -> Tensor:
+        inf = 1e9 if self.training else float("inf")
         if self.enable_sdpa:
             if self.enable_flash:
                 assert mask is None
@@ -65,11 +66,11 @@ class Attention(Module):
             q = q * q.shape[-1] ** -0.5
             similarity = q @ k.transpose(-2, -1)
             if mask is not None:
-                similarity.masked_fill_(~mask, -float("inf"))
+                similarity.masked_fill_(~mask, -inf)
             attention = similarity.softmax(dim=-1)
             message = attention @ v
         if mask is not None:
-            message.nan_to_num_()
+            message = message.nan_to_num()
         return message
 
 
@@ -78,33 +79,34 @@ class TransformerBlock(Module):
         self,
         dim: int,
         num_heads: int,
-        stride: int = 1,
+        patch_size: int = 1,
         enable_sdpa: bool = False,
         enable_flash: bool = False,
+        bias: bool = False,
     ) -> None:
         super().__init__()
         assert dim % num_heads == 0, "`dim` should be divisible by `num_heads`."
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
-        self.stride = stride
+        self.patch_size = patch_size
 
-        if stride > 1:
+        if patch_size > 1:
             self.patch_embed0 = nn.Conv2d(
-                dim, dim, stride, stride=stride, groups=dim, bias=False
+                dim, dim, patch_size, stride=patch_size, groups=dim, bias=bias
             )
-            self.patch_embed1 = nn.MaxPool2d(stride, stride=stride)
-        self.q_proj = nn.Linear(dim, dim, bias=False)
-        self.k_proj = nn.Linear(dim, dim, bias=False)
-        self.v_proj = nn.Linear(dim, dim, bias=False)
+            self.patch_embed1 = nn.MaxPool2d(patch_size, stride=patch_size)
+        self.q_proj = nn.Linear(dim, dim, bias=bias)
+        self.k_proj = nn.Linear(dim, dim, bias=bias)
+        self.v_proj = nn.Linear(dim, dim, bias=bias)
         self.attention = Attention(
             enable_sdpa=enable_sdpa, enable_flash=enable_flash
         )
-        self.out_proj = nn.Linear(dim, dim, bias=False)
+        self.out_proj = nn.Linear(dim, dim, bias=bias)
         self.norm1 = nn.LayerNorm(dim)
         self.mlp = nn.Sequential(
-            nn.Linear(dim * 2, dim * 2, bias=False),
+            nn.Linear(dim * 2, dim * 2, bias=bias),
             nn.ReLU(inplace=True),
-            nn.Linear(dim * 2, dim, bias=False),
+            nn.Linear(dim * 2, dim, bias=bias),
         )
         self.norm2 = nn.LayerNorm(dim)
 
@@ -119,11 +121,11 @@ class TransformerBlock(Module):
         mask = mask[:, None] if mask is not None else None
 
         x0_, x1_ = x0, x1
-        if self.stride > 1:
+        if self.patch_size > 1:
             x0_, x1_ = x0_.permute(0, 3, 1, 2), x1_.permute(0, 3, 1, 2)
             x0_ = self.patch_embed0(x0_).permute(0, 2, 3, 1)
             x1_ = self.patch_embed1(x1_).permute(0, 2, 3, 1)
-            h, w = h // self.stride, w // self.stride
+            h, w = h // self.patch_size, w // self.patch_size
 
         q, k, v = self.q_proj(x0_), self.k_proj(x1_), self.v_proj(x1_)
         if encoding is not None:
@@ -136,19 +138,18 @@ class TransformerBlock(Module):
         message = (
             self.attention(q, k, v, mask=mask)
             .transpose(-3, -2)
-            .flatten(start_dim=-2)
+            .reshape(n, h, w, c)
         )
-        message = self.norm1(self.out_proj(message)).unflatten(-2, (h, w))
-        if self.stride > 1:
+        message = self.norm1(self.out_proj(message))
+        if self.patch_size > 1:
             message = message.permute(0, 3, 1, 2).contiguous()
             message = F.interpolate(
                 message,
-                scale_factor=self.stride,
+                scale_factor=self.patch_size,
                 mode="bilinear",
                 align_corners=False,
             ).permute(0, 2, 3, 1)
-        message = torch.cat([x0, message], dim=-1)
-        x0 = x0 + self.norm2(self.mlp(message))
+        x0 = x0 + self.norm2(self.mlp(torch.cat([x0, message], dim=-1)))
         return x0
 
 

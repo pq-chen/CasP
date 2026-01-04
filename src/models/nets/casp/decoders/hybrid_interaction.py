@@ -31,8 +31,7 @@ class MergeBlock(Module):
             mode="bilinear",
             align_corners=False,
         ).permute(0, 2, 3, 1)
-        message = torch.cat([x0, message], dim=-1)
-        message = self.norm(self.mlp(message))
+        message = self.norm(self.mlp(torch.cat([x0, message], dim=-1)))
         x0 = x0 + message
         message = message.permute(0, 3, 1, 2)
         x1 = x1 + F.max_pool2d(message, self.stride).permute(0, 2, 3, 1)
@@ -52,7 +51,7 @@ class HybridInteraction(Module):
         self.cross_coc_blocks = nn.ModuleList(
             [copy.deepcopy(cross_coc_block) for _ in range(num_layers)]
         )
-        attention_block = TransformerBlock(dim, num_heads, stride=2)
+        attention_block = TransformerBlock(dim, num_heads, patch_size=2)
         self.self_attention_blocks = nn.ModuleList(
             [copy.deepcopy(attention_block) for _ in range(num_layers)]
         )
@@ -76,8 +75,9 @@ class HybridInteraction(Module):
         mask00 = mask11 = mask01 = mask10 = None
         if mask0 is not None and mask1 is not None:
             n = len(mask0)
-            mask0 = F.max_pool2d(mask0.float(), 4).bool()
-            mask1 = F.max_pool2d(mask1.float(), 4).bool()
+            mask0, mask1 = mask0.float(), mask1.float()
+            mask0 = F.max_pool2d(mask0, 4).bool()
+            mask1 = F.max_pool2d(mask1, 4).bool()
             mask00 = mask0.reshape(n, -1, 1) & mask0.reshape(n, 1, -1)
             mask11 = mask1.reshape(n, -1, 1) & mask1.reshape(n, 1, -1)
             mask01 = mask0.reshape(n, -1, 1) & mask1.reshape(n, 1, -1)

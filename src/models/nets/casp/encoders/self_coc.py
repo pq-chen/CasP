@@ -72,8 +72,7 @@ class SelfCoCBlock(Module):
 
     def forward(self, x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
         message = self.norm1(self.context_cluster(x, mask=mask))
-        message = torch.cat([x, message], dim=-1)
-        x = x + self.norm2(self.mlp(message))
+        x = x + self.norm2(self.mlp(torch.cat([x, message], dim=-1)))
         return x
 
 

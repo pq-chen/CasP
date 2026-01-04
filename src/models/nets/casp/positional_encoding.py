@@ -42,8 +42,8 @@ class SinusoidalPositionalEncoding(Module):
     def forward(self, x: Tensor) -> Tensor:
         test_size = max(x.shape[-2:])
         if self.test_size is None and test_size > self.train_size:
-            freqs_y = self.freqs_y * (self.train_size - 1) / (test_size - 1)
-            freqs_x = self.freqs_x * (self.train_size - 1) / (test_size - 1)
+            freqs_y = self.freqs_y * ((self.train_size - 1) / (test_size - 1))
+            freqs_x = self.freqs_x * ((self.train_size - 1) / (test_size - 1))
             freqs_sin = torch.stack(
                 [t.sin() for t in [freqs_y, freqs_x]], dim=-1
             ).flatten(start_dim=-2)

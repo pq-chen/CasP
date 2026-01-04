@@ -42,8 +42,7 @@ class CasP(Module):
         enable_crop: bool = True,
     ) -> Tuple[List[Tensor], List[Tensor]]:
         if image0.shape == image1.shape:
-            image = torch.cat([image0, image1])
-            x_list = self.low_level_encoder(image)
+            x_list = self.low_level_encoder(torch.cat([image0, image1]))
             x0_low_list, x1_low_list = map(
                 list, zip(*[x.chunk(2) for x in x_list])
             )
@@ -69,8 +68,9 @@ class CasP(Module):
                 b_x0_16x, b_x1_16x = self.coarse_module(
                     b_x0_high_list, b_x1_high_list, encoding0, encoding1
                 )
-                b_mask0 = F.max_pool2d(mask0[[b]].float(), 2).bool()
-                b_mask1 = F.max_pool2d(mask1[[b]].float(), 2).bool()
+                b_mask0, b_mask1 = mask0[[b]].float(), mask1[[b]].float()
+                b_mask0 = F.max_pool2d(b_mask0, 2).bool()
+                b_mask1 = F.max_pool2d(b_mask1, 2).bool()
                 x0_16x.append(pad_to_mask(b_x0_16x, b_mask0))
                 x1_16x.append(pad_to_mask(b_x1_16x, b_mask1))
             x0_16x, x1_16x = torch.cat(x0_16x), torch.cat(x1_16x)
